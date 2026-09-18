@@ -38,15 +38,39 @@ src/
     example-prompts.ts
     use-session.ts          conversation state + the polling loop
     agent/engine.ts         THE SEAM — mock today, Livepeer Agent next
+references/
+  *.jpg                     the official style references
+  analyse.py                re-derives the palette numbers from them
 ```
+
+## The visual language
+
+The six frames in `references/` are the authority on how this should look.
+`references/analyse.py` re-derives the numbers below if those frames change.
+
+| Reference says | What we do about it |
+| --- | --- |
+| Median saturation 0.20–0.46, but p99 reaches 0.76–0.99 | The vivid colour is stated as a proportion — ~1% of the frame — not as a mood |
+| Dominant hues are twilight indigo, slate teal, warm clay, cream paper | "Desaturated" means dusk, not ash; `--color-twilight` / `--color-slate` / `--color-clay` |
+| Median value 0.45–0.69 | Frames are mid-to-dark; the empty film stage is twilight, not cream |
+| Visible hand-inked linework over every wash | Named explicitly in the prompt — without it models return smooth digital gradients |
+| Audible paper grain throughout | The `paper-grain` utility, worn by the page and the film frame alike |
+| All 16:9, subject small in deep space | Wide cinematic framing is part of the contract |
+
+The single biggest failure mode is a model quietly returning a clean digital
+illustration. Most of the negative prompt exists to prevent exactly that.
 
 ### Decisions worth knowing
 
 **The style contract is not the user's problem.** Everything typed into the app
 is wrapped by `src/lib/style-contract.ts` before it reaches the agent: the
-watercolour look, the paper grain, the slow camera, and a hard no-text rule.
-A three-word wish still comes back in the language of THE LAST COLOR. Keeping
-it in one file means the whole aesthetic is tunable from one place.
+medium, the palette discipline, the motion, the atmosphere, and a hard no-text
+rule. A three-word wish still comes back in the language of THE LAST COLOR.
+Keeping it in one file means the whole aesthetic is tunable from one place.
+
+**Refinements restate the medium.** Models drift toward smooth digital
+rendering a little with every edit, so each follow-up re-sends the medium and
+palette clauses. Without that the look degrades across a conversation.
 
 **Refinements are amendments, not new prompts.** A follow-up like "make the bud
 brighter" is sent alongside the original brief and a `threadId`, so the agent

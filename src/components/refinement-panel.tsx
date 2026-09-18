@@ -106,7 +106,7 @@ function PhaseDot({ phase }: { phase: Session["turns"][number]["progress"]["phas
       ? "bg-sap"
       : phase === "failed"
         ? "bg-bud"
-        : "bg-dusk animate-breathe";
+        : "bg-slate animate-breathe";
 
   return (
     <span
