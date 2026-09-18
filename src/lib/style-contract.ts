@@ -1,148 +1,149 @@
 /**
- * The aesthetic is not the user's job. Everything they type is wrapped in this
- * contract before it reaches Livepeer Agent, so a three-word wish still comes
- * back in the language of THE LAST COLOR.
+ * The house style. The subject is always the user's; this file only decides
+ * how it is painted.
  *
- * Two sources of truth sit behind the clauses below.
+ * The line between the two matters and was drawn the wrong way at first: an
+ * earlier version hardcoded a lone flower in a dead world, which is a story,
+ * not a style. It forced that story onto every prompt. Everything below is
+ * restricted to what the six reference frames in /references actually have in
+ * common, measured by references/analyse.py:
  *
- * The six reference frames in /references, measured by references/analyse.py:
- *   - Median saturation is 0.20-0.46 but p99 reaches 0.76-0.99. The world is
- *     genuinely desaturated and the vivid colour is ~1% of the frame, so the
- *     accent is stated as a quantity, not a mood.
- *   - Dominant hues are twilight indigo, slate teal, warm clay and cream
- *     paper. "Desaturated" here means dusk, not ash.
- *   - Median value is 0.45-0.69 — mid-to-dark frames, not pale ones.
- *   - Every reference carries hand-inked linework over the washes.
+ *   - Ink linework over watercolour washes, on visible cold-press paper. This
+ *     is the strongest invariant — present in all six, and the thing models
+ *     drop first, returning smooth digital gradients instead.
+ *   - Median saturation 0.20-0.46 in every single frame. Muted is the one
+ *     colour rule that genuinely holds.
+ *   - Wide 16:9 with illustrative depth (measured 1.72-1.79:1).
  *
- * And live probes against the network (see README). What those taught us:
- *   - Asking for a "courtyard garden" returns a flowerbed. The single accent
- *     only survives if we say ONLY ONE FLOWER EXISTS outright.
- *   - Without an explicit night/low-key clause the model returns bright
- *     daylight: measured value median 0.70 versus 0.36 once we demand dusk.
- *   - `flux-schnell` does not declare `negative_prompt` and the provider
- *     silently drops it, so prohibitions MUST live in the positive prompt.
- *     Naming an unsigned painting with empty corners is what actually stops
- *     the model signing its own work — it was inventing signatures and house
- *     numbers otherwise, which breaks the wordless rule outright.
+ * And, just as importantly, what they do NOT have in common:
+ *
+ *   - Brightness. Median value runs 0.45 to 0.99 across the set; the cloud-sea
+ *     reference is almost white. So light is the user's call, not ours, and an
+ *     earlier "night, deep dusk" clause was overreach.
+ *   - Subject. The references are a flying ark, a stone giant, a night forest,
+ *     a sea of clouds, a forest clearing and a hilltop pavilion. Nothing about
+ *     the style implies any particular thing to paint.
+ *
+ * Live probes taught two more things, both about how models fail:
+ *
+ *   - `flux-schnell` does not declare `negative_prompt` and the provider drops
+ *     it silently, so prohibitions have to sit in the positive prompt.
+ *   - Negation does not work at all on diffusion models. Enumerating what to
+ *     leave out ("no other flowers, not in pots…") produced the exact thing it
+ *     forbade, because every noun you forbid is a noun you supply. Anything we
+ *     want absent has to be phrased as something present instead.
  */
 
 /** Livepeer's i2v capabilities accept 6, 8 or 10 seconds. */
 export const FILM_DURATION_SECONDS = 8;
 
-/** Medium and surface. Named first because it anchors everything after it. */
+/**
+ * Medium and surface — the heart of the style, and the part worth repeating
+ * whenever there is a risk of drift.
+ */
 const MEDIUM = [
   "ink and watercolour illustration on cold-press paper",
-  "visible dark ink contour lines drawn by hand over the washes",
-  "wet-on-wet colour bleeding, blooms and soft backruns",
-  "paper tooth and granulation readable through the paint",
-].join(", ");
-
-/** Low-key is stated twice: without it the model returns bright daylight. */
-const LIGHT = [
-  "night, deep dusk",
-  "low-key and dark, deep shadows",
-  "no bright white areas, no daylight",
+  "delicate dark ink contour lines drawn by hand over the washes",
+  "wet-on-wet colour bleeding, soft blooms and backruns at the edges",
+  "pigment granulation and paper tooth readable through the paint",
+  "luminous transparent washes with the white of the paper showing through",
 ].join(", ");
 
 /**
- * "Desaturated" alone gets read as "one strongly tinted hue": a probe came
- * back as a saturated teal monochrome, measured at 0.54 median saturation
- * against the references' 0.20-0.46. Low chroma has to be asked for as low
- * chroma, and the blue-monochrome trap named outright, or the single living
- * colour stops being precious.
+ * The one colour rule that every reference obeys. Deliberately says nothing
+ * about which hues or how bright — that follows the user's scene.
+ *
+ * "Desaturated" alone is read as "one strongly tinted hue": a probe returned a
+ * saturated teal monochrome at 0.54 median saturation. Naming the monochrome
+ * trap is what brought it back to 0.38, inside the reference band.
  */
-const PALETTE = [
-  "overwhelmingly desaturated and low-chroma: greyed, dusty, muted washes",
-  "twilight indigo, slate blue-grey, faded green, warm clay brown, bone and ash",
-  "NOT a strong blue or teal monochrome tint — the greys are genuinely neutral grey and the palette stays mixed and dusty",
-  "the single living colour glows faintly and is the only saturated colour anywhere in the picture",
+const COLOUR = [
+  "muted, low-chroma palette: greyed and dusty washes, never bright or candy pigment",
+  "the colour is muted but definitely present and rich — not pale, bleached or nearly colourless",
+  "NOT a single strong monochrome tint — the palette stays mixed, and neutral greys stay genuinely neutral",
+  "any vivid colour is small and deliberate, never spread across the whole frame",
 ].join(", ");
 
 /**
- * The wordless rule, phrased positively. A negative prompt cannot be relied
- * on here — see the note at the top of this file.
+ * Density, deliberately separate from time of day. Removing the old forced
+ * "night, deep dusk" clause was right — the references run from 0.45 to 0.99
+ * median value, so brightness belongs to the user — but removing it alone
+ * produced a bleached frame at 0.06 saturation and 0.86 value, mostly bare
+ * paper. What the references actually share is built-up washes with real
+ * darks, at any hour. That is what this asks for.
+ */
+const DENSITY = [
+  "washes built up to a full mid-tone density, with real darks and deep shadow in the composition",
+  "bare paper is left only as deliberate highlights, and does not dominate the frame",
+].join(", ");
+
+const FRAMING = [
+  "wide cinematic 16:9 composition",
+  "illustrative storybook depth, with air and distance in the scene",
+].join(", ");
+
+/**
+ * The wordless rule, phrased positively, since a negative prompt cannot be
+ * relied on here. A crop guard in `trim-edges.ts` backs this up, because
+ * wording alone did not stop the models signing their own paintings.
  */
 const WORDLESS = [
   "an unsigned painting",
-  "no signature, no handwriting, no lettering, no numbers and no markings anywhere on the image",
+  "no lettering, numbers, captions, signature or markings anywhere on the image",
   "all four corners are empty paper",
-  "every wall and surface is completely bare",
 ].join(", ");
 
-const FRAMING = "wide cinematic composition, the subject small in deep space";
-
-/**
- * Phrased entirely affirmatively, and that is the whole point.
- *
- * The first attempt enumerated the prohibitions — "no other flowers, not on
- * trees, not in pots, not on the ground" — and produced the worst frame of the
- * project: a courtyard packed with roses in pots. Diffusion models do not
- * process negation, so every noun you forbid is a noun you have just fed the
- * model. Being thorough about what to exclude actively summons it.
- *
- * What works is describing the emptiness as a positive fact and mentioning the
- * flower exactly once.
- */
-const SINGLE_ACCENT = [
-  "The world has forgotten colour.",
-  "Everything growing here died long ago: bare branches, dry stems, empty grey ground.",
-  "One living bloom survives in this whole dead world, small and alone, and the gardener has just found it.",
-].join(" ");
-
-/**
- * The opening frame. We paint a still first because the watercolour look is
- * far more controllable in an image than in text-to-video, and because this
- * costs a third of a cent instead of a dollar.
- */
+/** The opening frame: the user's subject, painted in the house style. */
 export function composeFramePrompt(userPrompt: string): string {
   return [
-    `${MEDIUM}. ${LIGHT}.`,
+    `${MEDIUM}.`,
     userPrompt.trim(),
-    SINGLE_ACCENT,
-    `${PALETTE}.`,
+    `${COLOUR}.`,
+    `${DENSITY}.`,
     `${FRAMING}.`,
     `${WORDLESS}.`,
   ].join(" ");
 }
 
 /**
- * Refinements are amendments rather than fresh prompts, so the agent keeps the
- * established scene. The medium and the wordless rule are restated because the
- * look drifts toward clean digital rendering across edits, and the model
- * starts signing its work again the moment we stop forbidding it.
+ * Refinements are amendments rather than fresh prompts, so the scene survives.
+ * The medium and colour rules are restated because the look drifts toward
+ * clean digital rendering across edits, and the model starts signing its work
+ * again the moment we stop forbidding it.
  */
 export function composeFrameRefinement(
   userPrompt: string,
   originalPrompt: string,
 ): string {
   return [
-    `${MEDIUM}. ${LIGHT}.`,
+    `${MEDIUM}.`,
     originalPrompt.trim(),
     `Revised: ${userPrompt.trim()}.`,
-    "Keep the same scene, character, framing and palette discipline.",
-    SINGLE_ACCENT,
-    `${PALETTE}.`,
+    "Keep the same scene, subject and composition; change only what was asked.",
+    `${COLOUR}.`,
+    `${DENSITY}.`,
     `${WORDLESS}.`,
   ].join(" ");
 }
 
 /**
  * Motion for the image-to-video stage. Deliberately sparse: the frame already
- * carries the look, so this clause only has to describe how it breathes. Long
- * restatements of the medium here tend to make i2v redraw the scene.
+ * carries the look, and long restatements of the medium here make i2v redraw
+ * the scene instead of animating it.
  */
 export function composeMotionPrompt(userPrompt: string): string {
+  const wish = userPrompt.trim();
   return [
     "The painting comes gently to life, still a moving watercolour on paper.",
-    userPrompt.trim(),
-    "Organic brush-stroke motion: pigment drifting, wet edges breathing, a soft wind through leaves and cloth.",
+    wish || "Only what is already in the scene moves.",
+    "Organic brush-stroke motion: pigment drifting, wet edges breathing, soft air moving through the scene.",
     "Slow, patient, almost still camera. One continuous shot, no cuts and no camera shake.",
     "Nothing is added to the scene and no text appears.",
   ].join(" ");
 }
 
 /**
- * Only sent to capabilities that actually declare it — `run_capability` warns
+ * Only reaches capabilities that actually declare it — `run_capability` warns
  * us when a provider would drop it, and several image models do.
  */
 export const NEGATIVE_PROMPT = [
@@ -155,8 +156,10 @@ export const NEGATIVE_PROMPT = [
   "caption",
   "logo",
   "photorealistic",
+  "photograph",
   "3d render",
   "cgi",
+  "digital airbrush",
   "smooth gradients",
   "glossy",
   "flat vector art",

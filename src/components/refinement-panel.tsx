@@ -4,12 +4,16 @@ import { PromptComposer } from "@/components/prompt-composer";
 import { FRAME } from "@/lib/agent/capabilities";
 import type { Phase, Session } from "@/lib/types";
 
+/**
+ * Craft notes rather than story notes: these are the things you would say to a
+ * painter about any subject, so they stay useful whatever is on the paper.
+ */
 const SUGGESTIONS = [
-  "Make the bud brighter.",
-  "Make the world greyer.",
   "Let the colour bleed further.",
+  "Show more of the ink line.",
   "Pull the camera back.",
-  "Take the light down to dusk.",
+  "Soften the light.",
+  "Leave more empty paper.",
 ];
 
 interface RefinementPanelProps {
@@ -103,9 +107,7 @@ export function RefinementPanel({
           disabled={disabled}
           size="compact"
           placeholder={
-            animating
-              ? "The film is rendering…"
-              : "Make the bud brighter…"
+            animating ? "The film is rendering…" : "Let the colour bleed further…"
           }
           submitLabel="Repaint"
         />

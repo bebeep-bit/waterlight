@@ -5,35 +5,44 @@ export interface ExamplePrompt {
   prompt: string;
 }
 
+/**
+ * Deliberately spread across subjects — a vessel, a creature, a landscape, a
+ * building, weather, an interior — because the style is not tied to any one of
+ * them. The reference frames range from a flying ark to a sea of clouds, and
+ * the examples should show that range rather than teach people the app only
+ * paints one kind of thing.
+ *
+ * Each one describes a scene and leaves the painting to the style contract.
+ */
 export const EXAMPLE_PROMPTS: ExamplePrompt[] = [
   {
-    label: "The last bud",
+    label: "The sky ark",
     prompt:
-      "A tiny gardener kneels in an ash-grey courtyard and cups her hands around the single red bud still alive in the world.",
+      "A wooden boat drifts above a sea of clouds, a great flowering vine growing out of its hull and trailing behind it.",
   },
   {
-    label: "Rain remembers",
+    label: "The stone keeper",
     prompt:
-      "Grey rain falls on a dead garden. Where each drop lands, a faint colour surfaces for a moment, then forgets itself again.",
+      "An enormous armoured figure stands waist-deep in a narrow canyon, a slow waterfall falling from its shoulders.",
   },
   {
-    label: "Carrying it home",
+    label: "Sea of clouds",
     prompt:
-      "A small figure walks a long colourless bridge at dusk, shielding one glowing yellow flower from the wind with her coat.",
+      "Sunrise over an endless field of cloud, with the peaks of two far mountains breaking the surface.",
   },
   {
-    label: "The watering",
+    label: "Wind chimes",
     prompt:
-      "An old tin can tips. Water spreads through pale paper soil and a thread of green climbs slowly toward the light.",
+      "A small hilltop pavilion of pale columns, its chimes and ribbons pulled sideways by the wind.",
   },
   {
-    label: "Petals let go",
+    label: "The lantern keeper",
     prompt:
-      "The last petal loosens and drifts across a washed-out city. Everything it passes gains a breath of colour and loses it.",
+      "A hooded traveller crosses a long flooded causeway at dusk, carrying a lantern that lights only the water at their feet.",
   },
   {
-    label: "Two hands",
+    label: "Library of rain",
     prompt:
-      "A child's hand passes the bud into a weathered hand. The paper around them blooms warm for a single heartbeat.",
+      "Rain falls through the broken roof of an abandoned library, pooling between the shelves and reflecting the grey sky.",
   },
 ];
