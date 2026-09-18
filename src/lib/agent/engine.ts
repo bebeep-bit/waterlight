@@ -118,8 +118,8 @@ interface FilmJob {
 
 /** Process-local: survives hot reloads, not a cold start. */
 const jobs: Map<string, FilmJob> = ((
-  globalThis as { __lastColorFilmJobs?: Map<string, FilmJob> }
-).__lastColorFilmJobs ??= new Map());
+  globalThis as { __waterlightFilmJobs?: Map<string, FilmJob> }
+).__waterlightFilmJobs ??= new Map());
 
 export async function startFilm(request: FilmRequest): Promise<FilmAccepted> {
   const tier = FILM_TIERS[request.tier];
@@ -154,7 +154,7 @@ export async function startFilm(request: FilmRequest): Promise<FilmAccepted> {
     async: true,
     timeout: 300,
     /* Guards against a double-submit billing us twice for one film. */
-    idempotency_key: `lca-film-${job.id}`,
+    idempotency_key: `wl-film-${job.id}`,
   });
 
   const remoteJobId = str(result.structured, "job_id");

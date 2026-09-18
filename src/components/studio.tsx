@@ -81,7 +81,7 @@ export function Studio() {
               onSubmit={handleSubmit}
               disabled={isBusy}
               size="hero"
-              placeholder="A tiny gardener finds one bud still alive…"
+              placeholder="A wooden boat drifting above a sea of clouds…"
               submitLabel="Paint the first wash"
             />
           </div>
@@ -107,7 +107,7 @@ function Masthead({
       <div className="flex items-center gap-3">
         <span className="h-2 w-2 rounded-full bg-bud" aria-hidden />
         <span className="font-serif text-[1.05rem] tracking-wide text-ink">
-          The Last Color
+          Waterlight
         </span>
       </div>
 
@@ -148,16 +148,16 @@ function Overture() {
   return (
     <div className="animate-rise mx-auto max-w-2xl text-center">
       <p className="text-[0.66rem] tracking-[0.34em] text-ink-faint uppercase">
-        Wordless watercolour films
+        Watercolour animation, by conversation
       </p>
       <h1 className="mt-6 font-serif text-4xl leading-[1.15] font-light text-ink sm:text-5xl">
-        A world that has forgotten colour,
-        <span className="block text-bud italic">and one bud that has not.</span>
+        Nothing here has
+        <span className="text-bud italic"> dried yet.</span>
       </h1>
       <p className="mx-auto mt-6 max-w-xl text-[0.95rem] leading-relaxed text-ink-soft">
-        Write a single line. The agent paints it as a watercolour still, you
-        talk it into shape, and only then does it come to life as a short,
-        silent film.
+        Write a line and it is painted in watercolour. Talk to the painting
+        until the frame is right — every attempt takes a moment — and only then
+        let it come to life as a short, wordless film.
       </p>
     </div>
   );

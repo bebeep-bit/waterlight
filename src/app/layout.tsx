@@ -15,9 +15,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "The Last Color Agent",
+  title: "Waterlight",
   description:
-    "Wordless watercolour films about a tiny gardener, one last living bud, and a world that has forgotten colour.",
+    "Watercolour animation made by conversation. Paint a still, talk it into shape, then bring it to life as a short wordless film.",
 };
 
 export default function RootLayout({

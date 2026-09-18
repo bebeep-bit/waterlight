@@ -116,7 +116,7 @@ function FilmFooter({ film }: { film: Film }) {
 
       <a
         href={downloadHref}
-        download="the-last-color.mp4"
+        download="waterlight.mp4"
         className="rounded-full border border-ink/25 px-6 py-2.5 text-[0.7rem] tracking-[0.22em] text-ink uppercase transition-all duration-500 hover:border-bud hover:bg-bud hover:text-paper"
       >
         Download film

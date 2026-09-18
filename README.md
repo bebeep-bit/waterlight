@@ -1,10 +1,24 @@
-# The Last Color Agent
+# Waterlight
 
-Wordless, watercolour-style short films made by conversation. Write one line,
-the agent paints an 8-second silent film, then you keep talking to it until the
-film is right.
+Watercolour animation made by conversation. Write a line and the agent paints
+it as a still watercolour. Talk the painting into shape — each attempt takes
+about two seconds and costs a third of a cent — and when the frame is right,
+bring it to life as a short, wordless film.
 
-Built for the Livepeer Agent Hackathon.
+Any subject. One house style, held by the agent so you never have to describe
+it.
+
+Built on Livepeer Agent for the Atumera Livepeer Agent Hackathon.
+
+## Why the still comes first
+
+Regenerating video on every note is slow and expensive: about a dollar and a
+minute per attempt. Refining a still instead is roughly 250x cheaper and 25x
+faster, and it holds the hand-painted look far better, because the style is
+locked in an image rather than re-guessed by a video model each time. It is
+also the network's own advice — `ltx-25-i2v-pro` describes itself as "the
+keeper animation from a locked keyframe" and points at the fast tier for
+iteration.
 
 ## Running it
 
@@ -62,19 +76,24 @@ illustration. Most of the negative prompt exists to prevent exactly that.
 
 ### Decisions worth knowing
 
-**The style contract is not the user's problem.** Everything typed into the app
-is wrapped by `src/lib/style-contract.ts` before it reaches the agent: the
-medium, the palette discipline, the motion, the atmosphere, and a hard no-text
-rule. A three-word wish still comes back in the language of THE LAST COLOR.
-Keeping it in one file means the whole aesthetic is tunable from one place.
+**The style is the product's job, not the user's.** Everything typed into the
+app is wrapped by `src/lib/style-contract.ts` before it reaches the agent: the
+medium, the colour discipline, the density, the framing and a hard no-text
+rule. Three words still come back in the house style, and keeping it in one
+file means the whole aesthetic is tunable from one place.
+
+**Style and subject are kept strictly apart.** The contract describes only how
+things are painted, never what to paint. An earlier version hardcoded one
+particular scene and forced it onto every prompt, which made a tool for a
+single story rather than for a style.
 
 **Refinements restate the medium.** Models drift toward smooth digital
 rendering a little with every edit, so each follow-up re-sends the medium and
-palette clauses. Without that the look degrades across a conversation.
+colour clauses. Without that the look degrades across a conversation.
 
-**Refinements are amendments, not new prompts.** A follow-up like "make the bud
-brighter" is sent alongside the original brief and a `threadId`, so the agent
-keeps the same scene, gardener and palette rather than starting over.
+**Refinements are amendments, not new prompts.** A note like "let the colour
+bleed further" is sent alongside the original brief, so the agent keeps the
+same scene and composition rather than starting over.
 
 **One seam to the agent.** `src/lib/agent/engine.ts` is the only file that knows
 how films get made. It already speaks the async accept-then-poll contract that

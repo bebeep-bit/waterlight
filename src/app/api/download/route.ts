@@ -32,7 +32,7 @@ export async function GET(request: Request) {
   return new NextResponse(upstream.body, {
     headers: {
       "Content-Type": upstream.headers.get("content-type") ?? "video/mp4",
-      "Content-Disposition": 'attachment; filename="the-last-color.mp4"',
+      "Content-Disposition": 'attachment; filename="waterlight.mp4"',
       "Cache-Control": "no-store",
     },
   });
