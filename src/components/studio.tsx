@@ -170,7 +170,7 @@ function Colophon() {
         Painted by Livepeer Agent
       </p>
       <p className="font-serif text-[0.9rem] text-ink-faint italic">
-        no words · one accent of life
+        ink and water on paper · no words
       </p>
     </footer>
   );
