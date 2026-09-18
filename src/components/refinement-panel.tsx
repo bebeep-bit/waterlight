@@ -1,14 +1,15 @@
 "use client";
 
 import { PromptComposer } from "@/components/prompt-composer";
-import type { Session } from "@/lib/types";
+import { FRAME } from "@/lib/agent/capabilities";
+import type { Phase, Session } from "@/lib/types";
 
 const SUGGESTIONS = [
   "Make the bud brighter.",
-  "Add a soft wind.",
   "Make the world greyer.",
-  "Hold the camera stiller.",
   "Let the colour bleed further.",
+  "Pull the camera back.",
+  "Take the light down to dusk.",
 ];
 
 interface RefinementPanelProps {
@@ -18,11 +19,13 @@ interface RefinementPanelProps {
   onSubmit: (value: string) => void;
   onShowTurn: (index: number) => void;
   disabled: boolean;
+  animating: boolean;
 }
 
 /**
- * The conversation with the agent. Every turn stays on the page and can be
- * clicked to bring that version of the film back to the stage.
+ * The conversation with the agent. Every wash stays on the page and can be
+ * clicked to bring it back to the stage, so a refinement that went the wrong
+ * way is never destructive.
  */
 export function RefinementPanel({
   session,
@@ -31,13 +34,15 @@ export function RefinementPanel({
   onSubmit,
   onShowTurn,
   disabled,
+  animating,
 }: RefinementPanelProps) {
   return (
     <aside className="flex h-full flex-col gap-6">
       <header>
         <h2 className="font-serif text-xl text-ink">The conversation</h2>
         <p className="mt-1 text-[0.82rem] leading-relaxed text-ink-soft/85">
-          Ask for changes the way you would ask a painter.
+          Ask for changes the way you would ask a painter. Each wash takes a
+          moment and costs about a third of a cent.
         </p>
       </header>
 
@@ -64,6 +69,11 @@ export function RefinementPanel({
                 <span className="mt-1.5 block text-[0.88rem] leading-relaxed text-ink-soft">
                   {turn.prompt}
                 </span>
+                {turn.error && (
+                  <span className="mt-1.5 block text-[0.78rem] text-bud">
+                    {turn.error}
+                  </span>
+                )}
               </button>
             </li>
           );
@@ -92,15 +102,23 @@ export function RefinementPanel({
           onSubmit={onSubmit}
           disabled={disabled}
           size="compact"
-          placeholder="Make the bud brighter…"
-          submitLabel="Refine"
+          placeholder={
+            animating
+              ? "The film is rendering…"
+              : "Make the bud brighter…"
+          }
+          submitLabel="Repaint"
         />
+
+        <p className="text-[0.62rem] tracking-[0.16em] text-ink-faint/80 uppercase">
+          {FRAME.name} · ≈ ${FRAME.price.toFixed(4)} a wash
+        </p>
       </div>
     </aside>
   );
 }
 
-function PhaseDot({ phase }: { phase: Session["turns"][number]["progress"]["phase"] }) {
+function PhaseDot({ phase }: { phase: Phase }) {
   const tone =
     phase === "ready"
       ? "bg-sap"

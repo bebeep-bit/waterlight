@@ -1,41 +1,37 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { FilmTier } from "@/lib/agent/capabilities";
 import type {
-  RenderAccepted,
-  RenderStatus,
+  FilmAccepted,
+  FilmStatus,
+  FrameResponse,
   Session,
   Turn,
 } from "@/lib/types";
 
-const POLL_INTERVAL_MS = 1_200;
+/** The network documents polling get_create_media at 5-10s as safe and free. */
+const POLL_INTERVAL_MS = 5_000;
 
-function newTurn(prompt: string, kind: Turn["kind"]): Turn {
-  return {
-    id: crypto.randomUUID(),
-    kind,
-    prompt,
-    progress: { phase: "composing", fraction: null, note: "Reading your wish." },
-    film: null,
-    error: null,
-  };
-}
+const EMPTY: Session = {
+  turns: [],
+  activeTurnIndex: -1,
+  film: null,
+  filmProgress: null,
+  filmError: null,
+  spentUsd: 0,
+};
 
 /**
- * Owns the whole conversation with the agent: the ordered turns, which film is
- * on the stage, and the polling loop for whichever render is still wet.
+ * Owns the conversation. Two loops live here, and they are deliberately
+ * different shapes: frames resolve inside a single request, so refining is a
+ * plain await. Films take a minute, so they are polled.
  */
 export function useSession() {
-  const [session, setSession] = useState<Session>({
-    turns: [],
-    activeTurnIndex: -1,
-    threadId: null,
-  });
-
-  /** jobId of the render we are currently polling, if any. */
-  const [pendingJobId, setPendingJobId] = useState<string | null>(null);
-  /** Turn that job belongs to, so status lands on the right row. */
-  const pendingTurnId = useRef<string | null>(null);
+  const [session, setSession] = useState<Session>(EMPTY);
+  const [pendingFilmJob, setPendingFilmJob] = useState<string | null>(null);
+  /** Warnings from the provider, e.g. a parameter it silently ignores. */
+  const [warnings, setWarnings] = useState<string[]>([]);
 
   const patchTurn = useCallback((turnId: string, patch: Partial<Turn>) => {
     setSession((prev) => ({
@@ -46,91 +42,153 @@ export function useSession() {
     }));
   }, []);
 
-  const submit = useCallback(
+  /** Paint or repaint the still. Cheap enough to do freely. */
+  const paint = useCallback(
     async (prompt: string) => {
       const trimmed = prompt.trim();
-      if (!trimmed || pendingJobId) return;
+      if (!trimmed) return;
 
-      const kind: Turn["kind"] = session.turns.length === 0 ? "seed" : "refinement";
-      const turn = newTurn(trimmed, kind);
+      const isSeed = session.turns.length === 0;
+      const turn: Turn = {
+        id: crypto.randomUUID(),
+        kind: isSeed ? "seed" : "refinement",
+        prompt: trimmed,
+        progress: {
+          phase: "painting",
+          fraction: 0.4,
+          note: "Laying the wash.",
+        },
+        frame: null,
+        error: null,
+      };
 
       setSession((prev) => ({
         ...prev,
         turns: [...prev.turns, turn],
         activeTurnIndex: prev.turns.length,
       }));
-      pendingTurnId.current = turn.id;
-
-      const seedPrompt = session.turns[0]?.prompt ?? trimmed;
-      const parentFilmId =
-        [...session.turns].reverse().find((t) => t.film)?.film?.id ?? null;
 
       try {
-        const response = await fetch("/api/render", {
+        const response = await fetch("/api/frame", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prompt: trimmed,
-            kind,
-            threadId: session.threadId,
-            originalPrompt: seedPrompt,
-            parentFilmId,
+            kind: turn.kind,
+            originalPrompt: session.turns[0]?.prompt ?? trimmed,
           }),
         });
-
         if (!response.ok) throw new Error(await readError(response));
 
-        const accepted: RenderAccepted = await response.json();
-        setSession((prev) => ({ ...prev, threadId: accepted.threadId }));
-        patchTurn(turn.id, { progress: accepted.progress });
-        setPendingJobId(accepted.jobId);
+        const { frame, warnings: warned }: FrameResponse = await response.json();
+        patchTurn(turn.id, {
+          frame,
+          progress: { phase: "ready", fraction: 1, note: "The wash is down." },
+        });
+        setSession((prev) => ({
+          ...prev,
+          spentUsd: prev.spentUsd + (frame.costUsd ?? 0),
+        }));
+        if (warned.length) setWarnings(warned);
       } catch (error) {
-        pendingTurnId.current = null;
         patchTurn(turn.id, {
           progress: { phase: "failed", fraction: null, note: "The paper tore." },
           error: error instanceof Error ? error.message : "Unknown failure.",
         });
       }
     },
-    [patchTurn, pendingJobId, session.threadId, session.turns],
+    [patchTurn, session.turns],
   );
 
-  /* Poll the wet render until it is dry or torn. */
+  /** Animate the frame currently on the stage. This is the expensive step. */
+  const animate = useCallback(
+    async (tier: FilmTier, seconds: number, motion: string) => {
+      const frame = session.turns[session.activeTurnIndex]?.frame;
+      if (!frame || pendingFilmJob) return;
+
+      setSession((prev) => ({
+        ...prev,
+        film: null,
+        filmError: null,
+        filmProgress: {
+          phase: "composing",
+          fraction: 0.05,
+          note: "Reading the painting.",
+        },
+      }));
+
+      try {
+        const response = await fetch("/api/film", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            imageUrl: frame.imageUrl,
+            prompt: motion,
+            tier,
+            seconds,
+          }),
+        });
+        if (!response.ok) throw new Error(await readError(response));
+
+        const accepted: FilmAccepted = await response.json();
+        setSession((prev) => ({ ...prev, filmProgress: accepted.progress }));
+        setPendingFilmJob(accepted.jobId);
+      } catch (error) {
+        setSession((prev) => ({
+          ...prev,
+          filmProgress: {
+            phase: "failed",
+            fraction: null,
+            note: "The paper tore.",
+          },
+          filmError: error instanceof Error ? error.message : "Unknown failure.",
+        }));
+      }
+    },
+    [pendingFilmJob, session.activeTurnIndex, session.turns],
+  );
+
+  /* Poll the film until it is dry or torn. */
   useEffect(() => {
-    if (!pendingJobId) return;
+    if (!pendingFilmJob) return;
     let cancelled = false;
 
     const tick = async () => {
-      const turnId = pendingTurnId.current;
-      if (!turnId) return;
-
       try {
-        const response = await fetch(`/api/render/${pendingJobId}`, {
+        const response = await fetch(`/api/film/${pendingFilmJob}`, {
           cache: "no-store",
         });
         if (!response.ok) throw new Error(await readError(response));
 
-        const status: RenderStatus = await response.json();
+        const status: FilmStatus = await response.json();
         if (cancelled) return;
 
-        patchTurn(turnId, {
-          progress: status.progress,
+        setSession((prev) => ({
+          ...prev,
           film: status.film,
-          error: status.error,
-        });
+          filmProgress: status.progress,
+          filmError: status.error,
+          spentUsd:
+            status.film && !prev.film
+              ? prev.spentUsd + (status.film.costUsd ?? 0)
+              : prev.spentUsd,
+        }));
 
         if (status.progress.phase === "ready" || status.progress.phase === "failed") {
-          pendingTurnId.current = null;
-          setPendingJobId(null);
+          setPendingFilmJob(null);
         }
       } catch (error) {
         if (cancelled) return;
-        pendingTurnId.current = null;
-        setPendingJobId(null);
-        patchTurn(turnId, {
-          progress: { phase: "failed", fraction: null, note: "The paper tore." },
-          error: error instanceof Error ? error.message : "Unknown failure.",
-        });
+        setPendingFilmJob(null);
+        setSession((prev) => ({
+          ...prev,
+          filmProgress: {
+            phase: "failed",
+            fraction: null,
+            note: "The paper tore.",
+          },
+          filmError: error instanceof Error ? error.message : "Unknown failure.",
+        }));
       }
     };
 
@@ -140,38 +198,44 @@ export function useSession() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [patchTurn, pendingJobId]);
+  }, [pendingFilmJob]);
 
   const showTurn = useCallback((index: number) => {
     setSession((prev) => ({ ...prev, activeTurnIndex: index }));
   }, []);
 
   const reset = useCallback(() => {
-    pendingTurnId.current = null;
-    setPendingJobId(null);
-    setSession({ turns: [], activeTurnIndex: -1, threadId: null });
+    setPendingFilmJob(null);
+    setWarnings([]);
+    setSession(EMPTY);
   }, []);
 
   const activeTurn = session.turns[session.activeTurnIndex] ?? null;
 
-  /** The newest finished film, which is what the download button hands over. */
-  const latestFilm = useMemo(
-    () => [...session.turns].reverse().find((turn) => turn.film)?.film ?? null,
+  const isPainting = useMemo(
+    () => session.turns.some((turn) => turn.progress.phase === "painting"),
     [session.turns],
   );
+
+  const isAnimating =
+    pendingFilmJob !== null || session.filmProgress?.phase === "composing";
 
   return {
     session,
     activeTurn,
-    latestFilm,
-    isRendering: pendingJobId !== null || activeTurn?.progress.phase === "composing",
+    warnings,
+    isPainting,
+    isAnimating,
+    isBusy: isPainting || isAnimating,
     hasStarted: session.turns.length > 0,
-    submit,
+    paint,
+    animate,
     showTurn,
     reset,
   };
 }
 
+/* Keeps a ref-free module boundary for the error text. */
 async function readError(response: Response): Promise<string> {
   try {
     const body = await response.json();

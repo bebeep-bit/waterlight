@@ -90,25 +90,52 @@ reference tokens like `bg-paper` and `text-bud`.
 colour wash that seeps across the page, with phase notes in the app's own voice
 ("Laying the first grey wash") instead of a percentage.
 
+## What the network taught us
+
+Everything here is measured against the live Livepeer Agent surface, not
+assumed. The findings are load-bearing enough to be worth writing down.
+
+**The pipeline is two stages because the network says so.** `ltx-25-i2v-pro`
+describes itself as "the keeper animation from a locked keyframe" and points at
+`ltx-25-i2v-fast` for iteration. Following that advice is also what makes the
+product affordable: a wash is ~$0.003 and 2 seconds, an animation is ~$0.82 and
+a minute. Refining on the still instead of the video makes iteration roughly
+250x cheaper and 25x faster, and it holds the watercolour look far better,
+since the style is locked in an image rather than re-guessed by a video model.
+
+**`flux-schnell` silently ignores `negative_prompt`.** The agent is honest about
+it and returns an `undeclared_param` warning, which the UI now surfaces. Every
+prohibition therefore has to live in the positive prompt. This is not cosmetic:
+the model was inventing house numbers and signing its own paintings, which
+breaks the wordless rule outright. Naming "an unsigned painting… all four
+corners are empty paper" is what actually stopped it.
+
+**"Desaturated" is read as "one strongly tinted hue".** A probe came back a
+saturated teal monochrome at 0.54 median saturation with 20% of the frame above
+0.6. Asking for low chroma explicitly, and naming the blue-monochrome trap,
+brought it to 0.38 median and 0.8% vivid — inside the reference band.
+
+**"Dark" has to be asked for twice.** Without an explicit night/low-key clause
+the model returns bright daylight: 0.70 median value against the references'
+0.45-0.69. With it, 0.36-0.41.
+
+**Video renders at 1080p, not the 720p the docs imply.** A 6-second render on
+the fast tier was billed $0.819 — exactly 6 x the 1080p rate — while the
+capability card says "we send 720p unless you name one". Quoting the 720p price
+would understate the real charge by 45%, so `capabilities.ts` quotes 1080p.
+
 ## Current status
 
-The UI is complete and runs end to end against a mock engine that walks through
-the real phases and returns a placeholder clip
-(`public/placeholder-film.mp4`, CC0, vendored so the demo can never fail on a
-dead CDN). Films are marked `placeholder render` in the UI while the mock is in
-use.
+Livepeer Agent is wired up and both stages are verified against the live
+network: a wash arrives in ~7s for $0.0032, and a 6-second film in ~32s for
+$0.819. Set `MOCK_AGENT=1` to run the whole studio for free on the bundled
+placeholder frame and film — worth keeping as a demo safety net.
 
-### Next: wire up Livepeer Agent
+### Submitting (Atumera Livepeer Agent Hackathon)
 
-Everything below happens inside `src/lib/agent/engine.ts`.
-
-1. Copy `.env.example` to `.env.local`. Leave `LIVEPEER_AGENT_KEY` empty to use
-   the keyless demo credit, or add a `sk_…` key from app.daydream.live.
-2. Add an MCP client that connects to `https://agent.livepeer.org/api/mcp` with
-   the `X-Livepeer Agent-Tool-Profile: lean` header.
-3. Replace `startRender` with a `create_media` call using the composed prompt
-   and `NEGATIVE_PROMPT`, and `readRender` with `get_create_media`.
-4. Map the agent's `human_summary` onto `RenderProgress.note` — the UI is built
-   to show the agent's own words, never raw JSON.
-5. Carry `model_note` through to `Film.modelNote`; the agent may legitimately
-   serve a different capability than the one requested.
+Deadline is **21 September 2026, 23:59 Europe/Athens** per
+[the submit page](https://atumera.com/hackathon/submit). Submission needs three
+things: a six-digit code emailed by the organizer after
+[registration](https://atumera.com/hackathon/apply), a project URL, and a demo
+video URL. Resubmitting with the same email and code replaces the entry, so
+send something working early and update it later.

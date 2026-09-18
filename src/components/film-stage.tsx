@@ -1,19 +1,22 @@
 "use client";
 
-import type { Film, RenderProgress } from "@/lib/types";
+import type { Film, Frame, Progress } from "@/lib/types";
 
 interface FilmStageProps {
+  frame: Frame | null;
   film: Film | null;
-  progress: RenderProgress | null;
+  /** Progress of whichever artefact is currently being made. */
+  progress: Progress | null;
   error: string | null;
 }
 
 /**
- * The frame the film lives in. Holds a 16:9 area at all times so the layout
- * never jumps between the empty, rendering and finished states.
+ * Holds a 16:9 area at all times so the layout never jumps between the empty,
+ * painting and finished states. The film wins the stage when it exists,
+ * because it is what the user came for.
  */
-export function FilmStage({ film, progress, error }: FilmStageProps) {
-  const isRendering =
+export function FilmStage({ frame, film, progress, error }: FilmStageProps) {
+  const isWorking =
     progress !== null &&
     progress.phase !== "ready" &&
     progress.phase !== "failed" &&
@@ -21,8 +24,6 @@ export function FilmStage({ film, progress, error }: FilmStageProps) {
 
   return (
     <div className="relative">
-      {/* Twilight, not cream: the references sit at a mid-to-dark value, and a
-          dark frame is what lets the waiting bud read as a light source. */}
       <div className="edge-wash paper-grain relative aspect-video overflow-hidden rounded-[1.75rem] border border-twilight-deep/30 bg-gradient-to-br from-twilight via-twilight-deep to-twilight shadow-[0_40px_90px_-60px_rgba(30,38,71,0.85)]">
         {film ? (
           <video
@@ -36,42 +37,59 @@ export function FilmStage({ film, progress, error }: FilmStageProps) {
             playsInline
             className="animate-bleed h-full w-full object-cover"
           />
+        ) : frame ? (
+          /* The still, shown at full bleed. Dimmed while a film renders from
+             it, so the stage reads as busy without losing the image.
+             Plain <img>: the agent's CDN hosts these behind signed one-off
+             paths, so there is nothing for next/image to cache usefully. */
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={frame.id}
+            src={frame.imageUrl}
+            alt=""
+            className={[
+              "animate-bleed h-full w-full object-cover transition-opacity duration-1000",
+              isWorking ? "opacity-40" : "opacity-100",
+            ].join(" ")}
+          />
         ) : (
-          <EmptyFrame isRendering={isRendering} error={error} />
+          <EmptyFrame isWorking={isWorking} error={error} />
+        )}
+
+        {frame && !film && isWorking && (
+          <div
+            className="animate-breathe absolute inset-0 m-auto h-32 w-32 rounded-full bg-bud/60 blur-[42px]"
+            aria-hidden
+          />
         )}
       </div>
 
-      {progress && !film && (
-        <ProgressWash progress={progress} error={error} />
-      )}
-
-      {film && <FilmCaption film={film} />}
+      {progress && !film && <ProgressWash progress={progress} error={error} />}
     </div>
   );
 }
 
 function EmptyFrame({
-  isRendering,
+  isWorking,
   error,
 }: {
-  isRendering: boolean;
+  isWorking: boolean;
   error: string | null;
 }) {
   return (
     <div className="flex h-full w-full items-center justify-center">
-      {/* The last living colour, before there is a film to hold it: one small
-          bloom that breathes while we wait, and goes cold when we are idle. */}
+      {/* The last living colour, before there is anything to hold it. */}
       <div
         className={[
           "h-32 w-32 rounded-full blur-[42px]",
-          isRendering ? "animate-breathe bg-bud/70" : "bg-slate/25",
+          isWorking ? "animate-breathe bg-bud/70" : "bg-slate/25",
         ].join(" ")}
         aria-hidden
       />
       <p className="absolute font-serif text-lg text-paper/70 italic">
         {error
           ? "Nothing took to the paper."
-          : isRendering
+          : isWorking
             ? "The paper is still wet."
             : "An empty sheet, waiting."}
       </p>
@@ -83,7 +101,7 @@ function ProgressWash({
   progress,
   error,
 }: {
-  progress: RenderProgress;
+  progress: Progress;
   error: string | null;
 }) {
   const fraction = progress.fraction ?? 0;
@@ -112,30 +130,6 @@ function ProgressWash({
           style={{ width: `${Math.max(fraction * 100, failed ? 100 : 4)}%` }}
         />
       </div>
-    </div>
-  );
-}
-
-function FilmCaption({ film }: { film: Film }) {
-  /* Same-origin files download directly; the agent's CDN needs the proxy. */
-  const downloadHref = film.videoUrl.startsWith("/")
-    ? film.videoUrl
-    : `/api/download?url=${encodeURIComponent(film.videoUrl)}`;
-
-  return (
-    <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-      <p className="text-[0.68rem] tracking-[0.2em] text-ink-faint uppercase">
-        {film.durationSeconds}s · wordless · {film.capability}
-        {film.isMock && " · placeholder render"}
-      </p>
-
-      <a
-        href={downloadHref}
-        download="the-last-color.mp4"
-        className="rounded-full border border-ink/25 px-6 py-2.5 text-[0.7rem] tracking-[0.22em] text-ink uppercase transition-all duration-500 hover:border-bud hover:bg-bud hover:text-paper"
-      >
-        Download film
-      </a>
     </div>
   );
 }

@@ -1,11 +1,15 @@
 /**
- * Shared vocabulary between the UI, the API routes and the Livepeer Agent layer.
- * The shapes deliberately mirror what `create_media` / `get_create_media`
- * return so swapping the mock engine for the real MCP client is a no-op here.
+ * Shared vocabulary between the UI, the API routes and the Livepeer Agent
+ * layer.
+ *
+ * The product has two distinct artefacts, and keeping them separate in the
+ * types is the whole design: a Frame is a still watercolour that costs a third
+ * of a cent and arrives in two seconds, so it is what the conversation acts
+ * on. A Film is the animation of an approved frame, costs about a dollar, and
+ * is therefore only ever made on an explicit request.
  */
 
-/** Lifecycle of a single render request. */
-export type RenderPhase =
+export type Phase =
   | "idle"
   | "composing"
   | "queued"
@@ -14,72 +18,94 @@ export type RenderPhase =
   | "ready"
   | "failed";
 
-/** A phase the agent reports while it works, surfaced verbatim in the UI. */
-export interface RenderProgress {
-  phase: RenderPhase;
-  /** 0–1. Null while the agent has not yet committed to an estimate. */
+export interface Progress {
+  phase: Phase;
+  /** 0-1. Null while the agent has not committed to an estimate. */
   fraction: number | null;
   /** One short, human line. Never raw JSON. */
   note: string;
 }
 
-/** A finished film. */
-export interface Film {
+/** A still watercolour. Cheap, fast, and what the user refines. */
+export interface Frame {
   id: string;
-  videoUrl: string;
-  posterUrl: string | null;
-  durationSeconds: number;
-  /** Which capability actually ran — the agent may substitute a sibling model. */
+  imageUrl: string;
+  /** Which capability actually ran. */
   capability: string;
-  /** Present only when the served model differs from the requested one. */
-  modelNote: string | null;
+  /** USD, as reported by the agent for this call. */
+  costUsd: number | null;
   createdAt: string;
-  /** True while we are running against the mock engine rather than Livepeer. */
   isMock: boolean;
 }
 
-/** One exchange in the conversation: the wish, then what the agent painted. */
+/** An animated film, made from one approved frame. */
+export interface Film {
+  id: string;
+  videoUrl: string;
+  /** The frame it was animated from, used as the poster. */
+  posterUrl: string | null;
+  durationSeconds: number;
+  capability: string;
+  costUsd: number | null;
+  createdAt: string;
+  isMock: boolean;
+}
+
+/** One exchange: the wish, and the wash the agent painted for it. */
 export interface Turn {
   id: string;
-  /** "seed" is the opening prompt; "refinement" is every follow-up. */
   kind: "seed" | "refinement";
   /** Exactly what the user typed, unembellished. */
   prompt: string;
-  progress: RenderProgress;
-  film: Film | null;
+  progress: Progress;
+  frame: Frame | null;
   error: string | null;
 }
 
-/** The whole session. One film lineage, refined turn by turn. */
 export interface Session {
   turns: Turn[];
-  /** Index into `turns` of the film currently on the stage. */
+  /** Index into `turns` of the frame currently on the stage. */
   activeTurnIndex: number;
-  /** Agent-side conversation handle, so refinements build on prior renders. */
-  threadId: string | null;
+  /** The film, once the user has asked for one. */
+  film: Film | null;
+  filmProgress: Progress | null;
+  filmError: string | null;
+  /** Everything spent this session, summed from agent-reported costs. */
+  spentUsd: number;
 }
 
 /* ---------- API contracts ---------- */
 
-export interface RenderRequest {
+export interface FrameRequest {
   prompt: string;
   kind: Turn["kind"];
-  threadId: string | null;
-  /** The opening brief, resent with refinements so the agent keeps the scene. */
+  /** The opening brief, resent so refinements keep the scene. */
   originalPrompt: string;
-  /** The film a refinement should build upon. */
-  parentFilmId: string | null;
 }
 
-export interface RenderAccepted {
-  jobId: string;
-  threadId: string;
-  progress: RenderProgress;
+export interface FrameResponse {
+  frame: Frame;
+  /** Provider notes worth surfacing, e.g. a dropped parameter. */
+  warnings: string[];
 }
 
-export interface RenderStatus {
+export interface FilmRequest {
+  /** The approved frame to animate. */
+  imageUrl: string;
+  /** What the motion should do, in the user's words. */
+  prompt: string;
+  tier: "preview" | "final";
+  seconds: number;
+}
+
+export interface FilmAccepted {
   jobId: string;
-  progress: RenderProgress;
+  progress: Progress;
+}
+
+export interface FilmStatus {
+  jobId: string;
+  progress: Progress;
   film: Film | null;
   error: string | null;
 }
