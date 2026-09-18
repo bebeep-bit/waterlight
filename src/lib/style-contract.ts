@@ -72,6 +72,24 @@ const WORDLESS = [
 const FRAMING = "wide cinematic composition, the subject small in deep space";
 
 /**
+ * Phrased entirely affirmatively, and that is the whole point.
+ *
+ * The first attempt enumerated the prohibitions — "no other flowers, not on
+ * trees, not in pots, not on the ground" — and produced the worst frame of the
+ * project: a courtyard packed with roses in pots. Diffusion models do not
+ * process negation, so every noun you forbid is a noun you have just fed the
+ * model. Being thorough about what to exclude actively summons it.
+ *
+ * What works is describing the emptiness as a positive fact and mentioning the
+ * flower exactly once.
+ */
+const SINGLE_ACCENT = [
+  "The world has forgotten colour.",
+  "Everything growing here died long ago: bare branches, dry stems, empty grey ground.",
+  "One living bloom survives in this whole dead world, small and alone, and the gardener has just found it.",
+].join(" ");
+
+/**
  * The opening frame. We paint a still first because the watercolour look is
  * far more controllable in an image than in text-to-video, and because this
  * costs a third of a cent instead of a dollar.
@@ -80,7 +98,7 @@ export function composeFramePrompt(userPrompt: string): string {
   return [
     `${MEDIUM}. ${LIGHT}.`,
     userPrompt.trim(),
-    "ONLY ONE flower exists in the entire picture; every other plant is dead, bare and colourless.",
+    SINGLE_ACCENT,
     `${PALETTE}.`,
     `${FRAMING}.`,
     `${WORDLESS}.`,
@@ -102,6 +120,7 @@ export function composeFrameRefinement(
     originalPrompt.trim(),
     `Revised: ${userPrompt.trim()}.`,
     "Keep the same scene, character, framing and palette discipline.",
+    SINGLE_ACCENT,
     `${PALETTE}.`,
     `${WORDLESS}.`,
   ].join(" ");

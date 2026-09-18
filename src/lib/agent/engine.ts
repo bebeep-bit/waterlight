@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { FILM_TIERS, FRAME } from "@/lib/agent/capabilities";
 import { AgentError, callTool, num, str } from "@/lib/agent/mcp";
+import { trimEdgesAndRehost } from "@/lib/agent/trim-edges";
 import {
   composeFramePrompt,
   composeFrameRefinement,
@@ -67,9 +68,24 @@ export async function paintFrame(
     async: false,
   });
 
-  const imageUrl = str(result.structured, "url");
-  if (!imageUrl) {
+  const rawUrl = str(result.structured, "url");
+  if (!rawUrl) {
     throw new AgentError(result.text || "The agent returned no image.");
+  }
+
+  /* Guarantee the wordless rule rather than hoping the model honoured it.
+     If the trim fails we still have a usable frame, so fall back to the
+     original rather than losing the render the user just paid for. */
+  let imageUrl = rawUrl;
+  const warnings = [...result.warnings];
+  try {
+    imageUrl = await trimEdgesAndRehost(rawUrl);
+  } catch (error) {
+    warnings.push(
+      `Could not trim the frame edges, so a stray signature may survive: ${
+        error instanceof Error ? error.message : "unknown error"
+      }`,
+    );
   }
 
   return {
@@ -81,7 +97,7 @@ export async function paintFrame(
       createdAt: new Date().toISOString(),
       isMock: false,
     },
-    warnings: result.warnings,
+    warnings,
   };
 }
 
