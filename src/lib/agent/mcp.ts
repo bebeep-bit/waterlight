@@ -3,11 +3,19 @@
  *
  * The endpoint speaks JSON-RPC over a single HTTP POST, so we do not need a
  * full MCP SDK or a persistent session — one fetch per tool call is the whole
- * protocol. Leaving `LIVEPEER_AGENT_KEY` unset uses the keyless demo credit.
+ * protocol.
+ *
+ * Hackathon / creative harness (default): `/api/mcp/creative` — each registered
+ * hacker gets a $100 balance that re-ups every 24h, with a pre-run cost estimate.
+ * Daydream `sk_` keys are not used on this surface.
  */
 
 const ENDPOINT =
-  process.env.LIVEPEER_AGENT_URL ?? "https://agent.livepeer.org/api/mcp";
+  process.env.LIVEPEER_AGENT_URL ??
+  "https://agent.livepeer.org/api/mcp/creative";
+
+/** How many times to retry a dropped connection to the agent. */
+const NETWORK_RETRIES = 2;
 
 export interface ToolResult {
   /** The agent's own human-readable line. We show this, never raw JSON. */
@@ -25,29 +33,73 @@ export async function callTool(
   args: Record<string, unknown>,
   signal?: AbortSignal,
 ): Promise<ToolResult> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= NETWORK_RETRIES; attempt++) {
+    try {
+      return await callToolOnce(name, args, signal);
+    } catch (error) {
+      lastError = error;
+      if (!isTransientNetwork(error) || attempt === NETWORK_RETRIES) break;
+      await sleep(400 * (attempt + 1));
+    }
+  }
+  throw wrapNetworkError(lastError);
+}
+
+async function callToolOnce(
+  name: string,
+  args: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<ToolResult> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json, text/event-stream",
   };
 
-  const key = process.env.LIVEPEER_AGENT_KEY?.trim();
-  if (key) headers.Authorization = `Bearer ${key}`;
+  /* Hackathon creative MCP is keyless-by-connection: do not send Daydream
+     `sk_` Authorization headers (they 401 on Agent). */
 
-  const response = await fetch(ENDPOINT, {
-    method: "POST",
-    headers,
-    signal,
-    cache: "no-store",
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: Date.now(),
-      method: "tools/call",
-      params: { name, arguments: args },
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(ENDPOINT, {
+      method: "POST",
+      headers,
+      signal,
+      cache: "no-store",
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: Date.now(),
+        method: "tools/call",
+        params: { name, arguments: args },
+      }),
+    });
+  } catch (error) {
+    throw wrapNetworkError(error);
+  }
 
   if (!response.ok) {
-    throw new AgentError(`Livepeer Agent returned ${response.status}.`);
+    let detail = "";
+    try {
+      const errBody = await response.text();
+      const parsed = JSON.parse(errBody) as {
+        error?: { message?: string };
+      };
+      detail = parsed.error?.message ?? "";
+    } catch {
+      /* ignore parse failures */
+    }
+    if (response.status === 401) {
+      throw new AgentError(
+        detail.includes("no longer accepted") || detail.includes("keyless")
+          ? "Livepeer Agent is running keyless right now. Restart the app (`npm run dev`) and try Paint again."
+          : "Livepeer Agent returned 401. Restart the app and try Paint again.",
+      );
+    }
+    throw new AgentError(
+      detail
+        ? `Livepeer Agent returned ${response.status}: ${detail}`
+        : `Livepeer Agent returned ${response.status}.`,
+    );
   }
 
   const body = await response.text();
@@ -94,6 +146,39 @@ export async function callTool(
     : [];
 
   return { text, structured, warnings };
+}
+
+function isTransientNetwork(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  const cause =
+    error.cause instanceof Error ? error.cause.message.toLowerCase() : "";
+  const blob = `${message} ${cause}`;
+  return (
+    blob.includes("fetch failed") ||
+    blob.includes("network") ||
+    blob.includes("econnreset") ||
+    blob.includes("econnrefused") ||
+    blob.includes("etimedout") ||
+    blob.includes("socket") ||
+    blob.includes("could not reach")
+  );
+}
+
+function wrapNetworkError(error: unknown): AgentError {
+  if (error instanceof AgentError) return error;
+  if (isTransientNetwork(error)) {
+    return new AgentError(
+      "Could not reach Livepeer Agent. Check the network or proxy, then try again.",
+    );
+  }
+  return new AgentError(
+    error instanceof Error ? error.message : "Livepeer Agent failed.",
+  );
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** Narrow helpers, so callers are not littered with casts. */

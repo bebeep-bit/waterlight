@@ -2,15 +2,16 @@
  * The capabilities this product runs, and what they cost.
  *
  * Prices and latencies are the network's own figures, read from
- * `describe_capability` on 18 Sep 2026. They are estimates shown to the user
- * before they spend anything; the real charge comes back on every response as
+ * `describe_capability`. They are estimates shown to the user before they
+ * spend anything; the real charge comes back on every response as
  * `cost_usd_estimated` and is what we actually record.
  *
- * The two-stage shape is the network's own advice: `ltx-25-i2v-pro` describes
- * itself as "the keeper animation from a locked keyframe" and points at
- * `ltx-25-i2v-fast` for iteration. So we lock a frame first, refine it while
- * it is cheap, and only animate once it is right.
+ * Two film tiers:
+ *   - standard — `pixverse-i2v`, native 5s, follows the still's size (~1K)
+ *   - hd — `ltx-i2v` at 1080p, native minimum 6s
  */
+
+export type FilmQuality = "standard" | "hd";
 
 export interface CapabilitySpec {
   name: string;
@@ -21,57 +22,69 @@ export interface CapabilitySpec {
   unit: "image" | "second";
   /** Median seconds, from the network's measured p50. */
   p50Seconds: number;
-  /** Whether the provider honours `negative_prompt`. */
-  takesNegativePrompt: boolean;
+  /** Abort timeout to send with `run_capability`. */
+  timeoutSeconds: number;
+}
+
+export interface FilmTier extends CapabilitySpec {
+  quality: FilmQuality;
+  durationSeconds: number;
+  /** Provider resolution tier, when the capability accepts one. */
+  resolution?: "720p" | "1080p" | "1440p" | "2160p";
 }
 
 /**
- * Frames are near-free and near-instant, which is what makes conversational
- * refinement viable at all: ~$0.003 and 2s per attempt instead of ~$1 and a
- * minute. Note flux-schnell drops `negative_prompt` — the wordless rule has to
- * live in the positive prompt instead.
+ * Frames used to run on `flux-schnell` (~$0.003). It is fast, but it drops
+ * the storybook ink line and returns either a generic wash or a photograph.
+ * `flux-dev` is ~8× the price and still a few cents; it actually holds the
+ * plate style that the references are made of.
  */
 export const FRAME: CapabilitySpec = {
-  name: "flux-schnell",
+  name: "flux-dev",
   label: "wash",
-  price: 0.0032,
+  price: 0.02625,
   unit: "image",
-  p50Seconds: 2,
-  takesNegativePrompt: false,
+  p50Seconds: 3,
+  timeoutSeconds: 45,
 };
 
-/**
- * The two animation tiers, offered to the user as an explicit choice.
- *
- * These carry the 1080p rates, not the 720p ones the capability cards lead
- * with. A measured 6-second render on `ltx-25-i2v-fast` was billed $0.819,
- * which is exactly 6 x $0.1365 — the 1080p rate — even though the card says
- * "we send 720p unless you name one". Quoting the 720p price would understate
- * what the user actually pays by 45%, so we quote what really runs. Pass
- * `resolution: "720p"` explicitly if the cheaper tier is ever wanted.
- */
-export const FILM_TIERS = {
-  preview: {
-    name: "ltx-25-i2v-fast",
-    label: "preview",
-    price: 0.1365,
-    unit: "second",
-    p50Seconds: 48,
-    takesNegativePrompt: false,
-  },
-  final: {
-    name: "ltx-25-i2v-pro",
-    label: "final take",
-    price: 0.1785,
-    unit: "second",
-    p50Seconds: 58,
-    takesNegativePrompt: false,
-  },
-} satisfies Record<string, CapabilitySpec>;
+/** Fast silent loop; resolution follows the still. */
+export const FILM_STANDARD: FilmTier = {
+  quality: "standard",
+  name: "pixverse-i2v",
+  label: "5s film",
+  price: 0.06825,
+  unit: "second",
+  p50Seconds: 29,
+  timeoutSeconds: 240,
+  durationSeconds: 5,
+};
 
-export type FilmTier = keyof typeof FILM_TIERS;
+/** 1080p; LTX's shortest native duration is 6 seconds. */
+export const FILM_HD: FilmTier = {
+  quality: "hd",
+  name: "ltx-i2v",
+  label: "HD film",
+  price: 0.063,
+  unit: "second",
+  p50Seconds: 60,
+  timeoutSeconds: 245,
+  durationSeconds: 6,
+  resolution: "1080p",
+};
 
-/** What animating this frame will cost, before the user commits to it. */
-export function estimateFilmCost(tier: FilmTier, seconds: number): number {
-  return FILM_TIERS[tier].price * seconds;
+/** @deprecated Prefer FILM_STANDARD — kept for call sites that mean the default. */
+export const FILM = FILM_STANDARD;
+
+export function filmTier(quality: FilmQuality | string | null | undefined): FilmTier {
+  return quality === "hd" ? FILM_HD : FILM_STANDARD;
+}
+
+export function isFilmQuality(value: unknown): value is FilmQuality {
+  return value === "standard" || value === "hd";
+}
+
+export function estimateFilmCost(quality: FilmQuality = "standard"): number {
+  const tier = filmTier(quality);
+  return tier.price * tier.durationSeconds;
 }

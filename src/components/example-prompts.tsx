@@ -14,7 +14,7 @@ export function ExamplePrompts({ onChoose, disabled }: ExamplePromptsProps) {
         id="examples-heading"
         className="mb-5 text-center text-[0.68rem] tracking-[0.3em] text-ink-faint uppercase"
       >
-        Or begin from one of these
+        Or write anything — these are only starting points
       </h2>
 
       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -25,7 +25,7 @@ export function ExamplePrompts({ onChoose, disabled }: ExamplePromptsProps) {
               disabled={disabled}
               onClick={() => onChoose(example.prompt)}
               style={{ animationDelay: `${120 * index}ms` }}
-              className="edge-wash group animate-rise h-full w-full rounded-2xl border border-paper-shadow/60 bg-paper/50 p-5 text-left transition-all duration-500 hover:-translate-y-0.5 hover:border-bud-soft/60 hover:bg-paper/80 disabled:pointer-events-none disabled:opacity-50"
+              className="group h-full w-full rounded-2xl border border-paper-shadow/60 bg-paper/50 p-5 text-left transition-all duration-500 hover:-translate-y-0.5 hover:border-bud-soft/60 hover:bg-paper/80 disabled:pointer-events-none disabled:opacity-50"
             >
               <span className="font-serif text-lg text-ink transition-colors duration-500 group-hover:text-bud">
                 {example.label}

@@ -9,6 +9,11 @@
  * is therefore only ever made on an explicit request.
  */
 
+import type { AspectId } from "@/lib/aspect";
+import type { FilmQuality } from "@/lib/agent/capabilities";
+
+export type { AspectId, FilmQuality };
+
 export type Phase =
   | "idle"
   | "composing"
@@ -34,6 +39,8 @@ export interface Frame {
   capability: string;
   /** USD, as reported by the agent for this call. */
   costUsd: number | null;
+  /** Aspect used for this wash — drives the stage frame. */
+  aspect: AspectId;
   createdAt: string;
   isMock: boolean;
 }
@@ -46,9 +53,20 @@ export interface Film {
   posterUrl: string | null;
   durationSeconds: number;
   capability: string;
+  /** Which animate tier produced this film. */
+  quality: FilmQuality;
   costUsd: number | null;
   createdAt: string;
   isMock: boolean;
+}
+
+/** A finished still or film kept in the strip after the stage moves on. */
+export interface KeptMedia {
+  id: string;
+  kind: "image" | "video";
+  src: string;
+  aspect: AspectId;
+  posterUrl?: string;
 }
 
 /** One exchange: the wish, and the wash the agent painted for it. */
@@ -57,8 +75,14 @@ export interface Turn {
   kind: "seed" | "refinement";
   /** Exactly what the user typed, unembellished. */
   prompt: string;
+  /** Format requested for this wash. */
+  aspect?: AspectId;
   progress: Progress;
   frame: Frame | null;
+  /** Film made from this wash, kept after the stage moves on. */
+  film?: Film | null;
+  /** Earlier stills and films for this prompt, after a regenerate. */
+  kept?: KeptMedia[];
   error: string | null;
 }
 
@@ -66,21 +90,38 @@ export interface Session {
   turns: Turn[];
   /** Index into `turns` of the frame currently on the stage. */
   activeTurnIndex: number;
+  /** Format chosen for new washes this session. */
+  aspect: AspectId;
   /** The film, once the user has asked for one. */
   film: Film | null;
   filmProgress: Progress | null;
   filmError: string | null;
+  /**
+   * Once Animate has been started, keep film | still side by side — even while
+   * the still is re-painted.
+   */
+  pairLayout: boolean;
   /** Everything spent this session, summed from agent-reported costs. */
   spentUsd: number;
 }
 
 /* ---------- API contracts ---------- */
 
+export type ReferenceMode = "style" | "subject";
+
 export interface FrameRequest {
   prompt: string;
   kind: Turn["kind"];
   /** The opening brief, resent so refinements keep the scene. */
   originalPrompt: string;
+  /** Output aspect; defaults to 16:9. */
+  aspect?: AspectId;
+  /** Hosted style plate. Hues, strokes, drawn-art handling. */
+  referenceUrl?: string;
+  /** Hosted object plate. What is in the frame. */
+  subjectUrl?: string;
+  /** How the reference is used: style plate vs subject/object lock. */
+  referenceMode?: ReferenceMode;
 }
 
 export interface FrameResponse {
@@ -92,10 +133,12 @@ export interface FrameResponse {
 export interface FilmRequest {
   /** The approved frame to animate. */
   imageUrl: string;
-  /** What the motion should do, in the user's words. */
+  /** What the motion should do, in the user's words. Optional. */
   prompt: string;
-  tier: "preview" | "final";
-  seconds: number;
+  /** standard = 5s pixverse; hd = 6s ltx at 1080p. */
+  quality?: FilmQuality;
+  /** Match the still. ltx-i2v otherwise defaults toward 16:9. */
+  aspect?: AspectId;
 }
 
 export interface FilmAccepted {

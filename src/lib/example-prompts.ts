@@ -8,41 +8,75 @@ export interface ExamplePrompt {
 /**
  * Deliberately spread across subjects — a vessel, a creature, a landscape, a
  * building, weather, an interior — because the style is not tied to any one of
- * them. The reference frames range from a flying ark to a sea of clouds, and
- * the examples should show that range rather than teach people the app only
- * paints one kind of thing.
- *
- * Each one describes a scene and leaves the painting to the style contract.
+ * them. Briefs stay short (about 5–10 words): enough scene, no style lecture.
  */
 export const EXAMPLE_PROMPTS: ExamplePrompt[] = [
   {
     label: "The sky ark",
-    prompt:
-      "A wooden boat drifts above a sea of clouds, a great flowering vine growing out of its hull and trailing behind it.",
+    prompt: "Wooden boat drifting above a flowering sea of clouds",
   },
   {
     label: "The stone keeper",
-    prompt:
-      "An enormous armoured figure stands waist-deep in a narrow canyon, a slow waterfall falling from its shoulders.",
+    prompt: "Giant armoured figure in a canyon with waterfall",
   },
   {
     label: "Sea of clouds",
-    prompt:
-      "Sunrise over an endless field of cloud, with the peaks of two far mountains breaking the surface.",
+    prompt: "Sunrise over endless clouds and two distant peaks",
   },
   {
     label: "Wind chimes",
-    prompt:
-      "A small hilltop pavilion of pale columns, its chimes and ribbons pulled sideways by the wind.",
+    prompt: "Hilltop pavilion with ribbons pulled by wind",
   },
   {
     label: "The lantern keeper",
-    prompt:
-      "A hooded traveller crosses a long flooded causeway at dusk, carrying a lantern that lights only the water at their feet.",
+    prompt: "Hooded traveller crossing a flooded causeway at dusk",
   },
   {
     label: "Library of rain",
-    prompt:
-      "Rain falls through the broken roof of an abandoned library, pooling between the shelves and reflecting the grey sky.",
+    prompt: "Rain falling through a broken abandoned library roof",
+  },
+  {
+    label: "Glass of citrus",
+    prompt: "Peach lemonade glass with citrus on checkered napkin",
+  },
+  {
+    label: "Desert train",
+    prompt: "Pale passenger train crossing desert at warm sunset",
+  },
+  {
+    label: "Morning balloon",
+    prompt: "Striped hot-air balloon above soft rolling hills",
+  },
+  {
+    label: "Forest bridge",
+    prompt: "Arched wooden bridge over a calm forest stream",
+  },
+  {
+    label: "Winter fox",
+    prompt: "Red fox standing in soft snow among bare trees",
+  },
+  {
+    label: "Mushroom glade",
+    prompt: "Forest clearing of oversized pink and gold mushrooms",
+  },
+  {
+    label: "Bowl of berries",
+    prompt: "Wooden bowl overflowing with ripe strawberries",
+  },
+  {
+    label: "Desk lamp",
+    prompt: "Pastel books leaning beside a cream desk lamp",
+  },
+  {
+    label: "Tide pool",
+    prompt: "Quiet canyon pool with stones and thin waterfall",
+  },
+  {
+    label: "Ribbon moth",
+    prompt: "Large ribbon-winged moth resting on a blossom",
+  },
+  {
+    label: "Cloud puffs",
+    prompt: "Soft rounded clouds drifting over a pale horizon",
   },
 ];

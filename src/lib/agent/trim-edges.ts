@@ -1,8 +1,10 @@
 import sharp from "sharp";
 import { callTool, str } from "@/lib/agent/mcp";
+import { canvasSize, type AspectId } from "@/lib/aspect";
 
 /**
- * Crops a margin off every edge of a generated frame, then re-hosts it.
+ * Crops a margin off every edge of a generated frame, then re-hosts it at the
+ * picker aspect.
  *
  * This exists because the image models keep signing their own paintings. The
  * wordless rule is not negotiable for this product, and three rounds of prompt
@@ -15,6 +17,9 @@ import { callTool, str } from "@/lib/agent/mcp";
  * deckled paper border — which we also do not want, since a painted border
  * animates badly. Trimming both is one operation.
  *
+ * Cast / kontext-edit can still drift a few pixels off the requested ratio;
+ * the final resize locks the stage and i2v to the chosen format.
+ *
  * The result has to be re-hosted rather than kept local, because the
  * image-to-video capability fetches `source_url` from the public internet.
  * `upload_image` does that for free.
@@ -23,7 +28,10 @@ import { callTool, str } from "@/lib/agent/mcp";
 /** Fraction taken off each edge. 5% clears corner marks without recomposing. */
 const INSET = 0.05;
 
-export async function trimEdgesAndRehost(imageUrl: string): Promise<string> {
+export async function trimEdgesAndRehost(
+  imageUrl: string,
+  aspectId: AspectId,
+): Promise<string> {
   const response = await fetch(imageUrl, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Could not read the frame back (${response.status}).`);
@@ -37,6 +45,7 @@ export async function trimEdgesAndRehost(imageUrl: string): Promise<string> {
 
   const dx = Math.round(width * INSET);
   const dy = Math.round(height * INSET);
+  const target = canvasSize(aspectId);
 
   const trimmed = await sharp(original)
     .extract({
@@ -45,9 +54,8 @@ export async function trimEdgesAndRehost(imageUrl: string): Promise<string> {
       width: width - dx * 2,
       height: height - dy * 2,
     })
-    /* Back to the original size so the stage and the i2v stage both get the
-       16:9 frame they expect. */
-    .resize(width, height, { fit: "fill" })
+    /* Cover the picker canvas so a slightly wrong cast ratio still fills. */
+    .resize(target.width, target.height, { fit: "cover", position: "centre" })
     .jpeg({ quality: 92 })
     .toBuffer();
 

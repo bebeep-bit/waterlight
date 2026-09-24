@@ -1,11 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { FilmTier } from "@/lib/agent/capabilities";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DEFAULT_ASPECT, type AspectId } from "@/lib/aspect";
 import type {
+  Film,
   FilmAccepted,
   FilmStatus,
+  Frame,
   FrameResponse,
+  KeptMedia,
+  ReferenceMode,
   Session,
   Turn,
 } from "@/lib/types";
@@ -13,14 +17,28 @@ import type {
 /** The network documents polling get_create_media at 5-10s as safe and free. */
 const POLL_INTERVAL_MS = 5_000;
 
-const EMPTY: Session = {
-  turns: [],
-  activeTurnIndex: -1,
-  film: null,
-  filmProgress: null,
-  filmError: null,
-  spentUsd: 0,
-};
+export interface PaintOptions {
+  referenceUrl?: string;
+  subjectUrl?: string;
+  referenceMode?: ReferenceMode;
+  /** Object plate's own format. Wins over the picker. */
+  aspect?: AspectId;
+}
+
+function blankSession(aspect: AspectId = DEFAULT_ASPECT): Session {
+  return {
+    turns: [],
+    activeTurnIndex: -1,
+    aspect,
+    film: null,
+    filmProgress: null,
+    filmError: null,
+    pairLayout: false,
+    spentUsd: 0,
+  };
+}
+
+const EMPTY: Session = blankSession();
 
 /**
  * Owns the conversation. Two loops live here, and they are deliberately
@@ -30,6 +48,8 @@ const EMPTY: Session = {
 export function useSession() {
   const [session, setSession] = useState<Session>(EMPTY);
   const [pendingFilmJob, setPendingFilmJob] = useState<string | null>(null);
+  /** Which wash the in-flight film belongs to, so it can drop into history. */
+  const filmTurnId = useRef<string | null>(null);
   /** Warnings from the provider, e.g. a parameter it silently ignores. */
   const [warnings, setWarnings] = useState<string[]>([]);
 
@@ -42,17 +62,25 @@ export function useSession() {
     }));
   }, []);
 
+  const setAspect = useCallback((aspect: AspectId) => {
+    setSession((prev) => ({ ...prev, aspect }));
+  }, []);
+
   /** Paint or repaint the still. Cheap enough to do freely. */
   const paint = useCallback(
-    async (prompt: string) => {
+    async (prompt: string, options?: PaintOptions) => {
       const trimmed = prompt.trim();
-      if (!trimmed) return;
+      const subjectUrl = options?.subjectUrl;
+      if (!trimmed && !subjectUrl) return;
+      const shown = trimmed || "Objects in the frame";
 
       const isSeed = session.turns.length === 0;
+      const aspect = options?.aspect ?? session.aspect;
       const turn: Turn = {
         id: crypto.randomUUID(),
         kind: isSeed ? "seed" : "refinement",
-        prompt: trimmed,
+        prompt: shown,
+        aspect,
         progress: {
           phase: "painting",
           fraction: 0.4,
@@ -66,7 +94,12 @@ export function useSession() {
         ...prev,
         turns: [...prev.turns, turn],
         activeTurnIndex: prev.turns.length,
+        /* A new wash replaces any film on the stage. */
+        film: null,
+        filmProgress: null,
+        filmError: null,
       }));
+      setPendingFilmJob(null);
 
       try {
         const response = await fetch("/api/frame", {
@@ -75,7 +108,11 @@ export function useSession() {
           body: JSON.stringify({
             prompt: trimmed,
             kind: turn.kind,
-            originalPrompt: session.turns[0]?.prompt ?? trimmed,
+            originalPrompt: session.turns[0]?.prompt ?? shown,
+            aspect,
+            referenceUrl: options?.referenceUrl,
+            subjectUrl,
+            referenceMode: options?.referenceMode,
           }),
         });
         if (!response.ok) throw new Error(await readError(response));
@@ -97,19 +134,117 @@ export function useSession() {
         });
       }
     },
-    [patchTurn, session.turns],
+    [patchTurn, session.aspect, session.turns],
+  );
+
+  /**
+   * Redo one existing wash in place. The previous still and its film stay in
+   * the history strip; the stage shows only the new wash.
+   */
+  const regenerate = useCallback(
+    async (turnIndex: number, options?: PaintOptions) => {
+      const turn = session.turns[turnIndex];
+      if (!turn) return;
+      if (session.turns.some((t) => t.progress.phase === "painting")) return;
+
+      const aspect = session.aspect;
+      const originalPrompt = session.turns[0]?.prompt ?? turn.prompt;
+      const turnId = turn.id;
+
+      /* Drop an in-flight film job; keep any finished film on the left lane. */
+      setPendingFilmJob(null);
+      setSession((prev) => ({
+        ...prev,
+        activeTurnIndex: turnIndex,
+        film: null,
+        filmProgress: null,
+        filmError: null,
+        pairLayout: false,
+        turns: prev.turns.map((t, i) => {
+          if (i !== turnIndex) return t;
+          const kept = [...(t.kept ?? [])];
+          if (t.frame?.imageUrl) {
+            kept.push({
+              id: t.frame.id,
+              kind: "image",
+              src: t.frame.imageUrl,
+              aspect: t.frame.aspect,
+            });
+          }
+          const film = t.film ?? (i === prev.activeTurnIndex ? prev.film : null);
+          if (film?.videoUrl) {
+            kept.push({
+              id: film.id,
+              kind: "video",
+              src: film.videoUrl,
+              aspect: t.frame?.aspect ?? t.aspect ?? prev.aspect,
+              posterUrl: film.posterUrl ?? t.frame?.imageUrl,
+            });
+          }
+          return {
+            ...t,
+            kept,
+            film: null,
+            aspect,
+            progress: {
+              phase: "painting",
+              fraction: 0.4,
+              note: "Laying the wash again.",
+            },
+            error: null,
+          };
+        }),
+      }));
+
+      try {
+        const response = await fetch("/api/frame", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: turn.prompt,
+            kind: turn.kind,
+            originalPrompt,
+            aspect,
+            referenceUrl: options?.referenceUrl,
+            referenceMode: options?.referenceMode,
+          }),
+        });
+        if (!response.ok) throw new Error(await readError(response));
+
+        const { frame, warnings: warned }: FrameResponse = await response.json();
+        patchTurn(turnId, {
+          frame,
+          progress: { phase: "ready", fraction: 1, note: "The wash is down." },
+          error: null,
+        });
+        setSession((prev) => ({
+          ...prev,
+          spentUsd: prev.spentUsd + (frame.costUsd ?? 0),
+        }));
+        if (warned.length) setWarnings(warned);
+      } catch (error) {
+        patchTurn(turnId, {
+          progress: { phase: "failed", fraction: null, note: "The paper tore." },
+          error: error instanceof Error ? error.message : "Unknown failure.",
+        });
+      }
+    },
+    [patchTurn, session.aspect, session.turns],
   );
 
   /** Animate the frame currently on the stage. This is the expensive step. */
   const animate = useCallback(
-    async (tier: FilmTier, seconds: number, motion: string) => {
-      const frame = session.turns[session.activeTurnIndex]?.frame;
-      if (!frame || pendingFilmJob) return;
+    async (motion: string) => {
+      const turn = session.turns[session.activeTurnIndex];
+      const frame = turn?.frame;
+      if (!frame || !turn || pendingFilmJob) return;
+      filmTurnId.current = turn.id;
 
       setSession((prev) => ({
         ...prev,
         film: null,
         filmError: null,
+        pairLayout: true,
         filmProgress: {
           phase: "composing",
           fraction: 0.05,
@@ -124,8 +259,8 @@ export function useSession() {
           body: JSON.stringify({
             imageUrl: frame.imageUrl,
             prompt: motion,
-            tier,
-            seconds,
+            quality: "hd",
+            aspect: frame.aspect,
           }),
         });
         if (!response.ok) throw new Error(await readError(response));
@@ -163,11 +298,18 @@ export function useSession() {
         const status: FilmStatus = await response.json();
         if (cancelled) return;
 
+        const ownerId = filmTurnId.current;
         setSession((prev) => ({
           ...prev,
           film: status.film,
           filmProgress: status.progress,
           filmError: status.error,
+          turns:
+            status.film && ownerId
+              ? prev.turns.map((turn) =>
+                  turn.id === ownerId ? { ...turn, film: status.film } : turn,
+                )
+              : prev.turns,
           spentUsd:
             status.film && !prev.film
               ? prev.spentUsd + (status.film.costUsd ?? 0)
@@ -204,10 +346,115 @@ export function useSession() {
     setSession((prev) => ({ ...prev, activeTurnIndex: index }));
   }, []);
 
+  /**
+   * Put one history still on the large stage so it can be animated.
+   * The previous still and its film stay in the strip.
+   */
+  const showStill = useCallback((turnIndex: number, src: string, aspect: AspectId) => {
+    if (pendingFilmJob) return;
+    setSession((prev) => {
+      const turn = prev.turns[turnIndex];
+      if (!turn || turn.progress.phase === "painting") return prev;
+      if (prev.turns.some((item) => item.progress.phase === "painting")) return prev;
+
+      const kept: KeptMedia[] = [...(turn.kept ?? [])];
+      const remember = (item: KeptMedia) => {
+        if (!kept.some((existing) => existing.kind === item.kind && existing.src === item.src)) {
+          kept.push(item);
+        }
+      };
+
+      if (turn.frame?.imageUrl && turn.frame.imageUrl !== src) {
+        remember({
+          id: turn.frame.id,
+          kind: "image",
+          src: turn.frame.imageUrl,
+          aspect: turn.frame.aspect,
+        });
+      }
+
+      const film: Film | null =
+        turn.film ?? (turnIndex === prev.activeTurnIndex ? prev.film : null);
+      if (film?.videoUrl) {
+        remember({
+          id: film.id,
+          kind: "video",
+          src: film.videoUrl,
+          aspect: turn.frame?.aspect ?? aspect,
+          posterUrl: film.posterUrl ?? turn.frame?.imageUrl,
+        });
+      }
+
+      const picked = kept.find((item) => item.kind === "image" && item.src === src);
+      const nextKept = kept.filter((item) => !(item.kind === "image" && item.src === src));
+      const frame: Frame =
+        turn.frame?.imageUrl === src
+          ? turn.frame
+          : {
+              id: picked?.id ?? crypto.randomUUID(),
+              imageUrl: src,
+              capability: turn.frame?.capability ?? "flux-dev",
+              costUsd: null,
+              aspect: picked?.aspect ?? aspect,
+              createdAt: new Date().toISOString(),
+              isMock: false,
+            };
+
+      return {
+        ...prev,
+        activeTurnIndex: turnIndex,
+        film: null,
+        filmProgress: null,
+        filmError: null,
+        pairLayout: false,
+        turns: prev.turns.map((item, index) =>
+          index === turnIndex
+            ? {
+                ...item,
+                frame,
+                kept: nextKept,
+                film: null,
+                aspect: frame.aspect,
+                progress: { phase: "ready", fraction: 1, note: "The wash is down." },
+                error: null,
+              }
+            : item,
+        ),
+      };
+    });
+  }, [pendingFilmJob]);
+
+  /** Drop one wash from the conversation. Studio stays open for the next brief. */
+  const removeTurn = useCallback((index: number) => {
+    setPendingFilmJob(null);
+    setSession((prev) => {
+      if (index < 0 || index >= prev.turns.length) return prev;
+      const turns = prev.turns.filter((_, i) => i !== index);
+      if (turns.length === 0) {
+        return blankSession(prev.aspect);
+      }
+      let activeTurnIndex = prev.activeTurnIndex;
+      if (index < activeTurnIndex) activeTurnIndex -= 1;
+      else if (index === activeTurnIndex) {
+        activeTurnIndex = Math.min(index, turns.length - 1);
+      }
+      const droppedActive = index === prev.activeTurnIndex;
+      return {
+        ...prev,
+        turns,
+        activeTurnIndex,
+        film: droppedActive ? null : prev.film,
+        filmProgress: droppedActive ? null : prev.filmProgress,
+        filmError: droppedActive ? null : prev.filmError,
+        pairLayout: droppedActive ? false : prev.pairLayout,
+      };
+    });
+  }, []);
+
   const reset = useCallback(() => {
     setPendingFilmJob(null);
     setWarnings([]);
-    setSession(EMPTY);
+    setSession((prev) => blankSession(prev.aspect));
   }, []);
 
   const activeTurn = session.turns[session.activeTurnIndex] ?? null;
@@ -229,8 +476,12 @@ export function useSession() {
     isBusy: isPainting || isAnimating,
     hasStarted: session.turns.length > 0,
     paint,
+    regenerate,
+    removeTurn,
     animate,
     showTurn,
+    showStill,
+    setAspect,
     reset,
   };
 }
