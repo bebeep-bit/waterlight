@@ -22,12 +22,17 @@ iteration.
 
 ## Running it
 
+The app is not a public website. Anyone who clones the repo runs it on their own computer. `localhost` then means that computer, not the author's machine.
+
 ```bash
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
 Then open http://localhost:3000.
+
+`.env.local` only needs `LIVEPEER_AGENT_URL=https://agent.livepeer.org/api/mcp/creative`. Do not set a Daydream `sk_` key. Paint and Animate spend the hackathon creative balance on that network.
 
 ## Where things live
 
@@ -145,16 +150,8 @@ would understate the real charge by 45%, so `capabilities.ts` quotes 1080p.
 
 ## Current status
 
-Livepeer Agent is wired up and both stages are verified against the live
-network: a wash arrives in ~7s for $0.0032, and a 6-second film in ~32s for
-$0.819. Set `MOCK_AGENT=1` to run the whole studio for free on the bundled
-placeholder frame and film — worth keeping as a demo safety net.
+Livepeer Agent is wired through the creative MCP. A prompt paints a watercolor still; Animate turns that still into a silent 6-second film. The frame format follows the picker. A style reference can strengthen the hues and the brushstrokes.
 
 ### Submitting (Atumera Livepeer Agent Hackathon)
 
-Deadline is **21 September 2026, 23:59 Europe/Athens** per
-[the submit page](https://atumera.com/hackathon/submit). Submission needs three
-things: a six-digit code emailed by the organizer after
-[registration](https://atumera.com/hackathon/apply), a project URL, and a demo
-video URL. Resubmitting with the same email and code replaces the entry, so
-send something working early and update it later.
+[The submit page](https://atumera.com/hackathon/submit) asks for the email, the six-digit code, the repository URL, and a demo video URL. Resubmitting with the same email and code replaces the entry.
