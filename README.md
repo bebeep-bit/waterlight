@@ -154,4 +154,4 @@ Livepeer Agent is wired through the creative MCP. A prompt paints a watercolor s
 
 ### Submitting (Atumera Livepeer Agent Hackathon)
 
-[The submit page](https://atumera.com/hackathon/submit) asks for the email, the six-digit code, the repository URL, and a demo video URL. Resubmitting with the same email and code replaces the entry.
+Deadline on [the submit page](https://atumera.com/hackathon/submit) is **26 September 2026, 23:59 Europe/Athens**. The form asks for the email, the six-digit code, the repository URL, and a demo video URL. Resubmitting with the same email and code replaces the entry.
