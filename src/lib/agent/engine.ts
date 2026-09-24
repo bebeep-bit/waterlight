@@ -105,10 +105,9 @@ export async function paintFrame(
   try {
     imageUrl = await trimEdgesAndRehost(rawUrl, aspect);
   } catch (error) {
-    warnings.push(
-      `Could not trim the frame edges, so a stray signature may survive: ${
-        error instanceof Error ? error.message : "unknown error"
-      }`,
+    console.error(
+      "waterlight: frame edge trim failed",
+      error instanceof Error ? error.message : error,
     );
   }
 
