@@ -10,6 +10,10 @@ it.
 
 Built on Livepeer Agent for the Atumera Livepeer Agent Hackathon.
 
+The style reference below is a generated frame from Margarita Gruntova’s AI film. She is the author of the picture. In Waterlight it is used only to strengthen the watercolour: the hues, the brushstrokes, and the look of drawn art. The subject of a new painting still comes from the prompt.
+
+![Watercolour style reference, a generated frame by Margarita Gruntova](references/style-example.jpg)
+
 ## Why the still comes first
 
 Regenerating video on every note is slow and expensive: about a dollar and a
